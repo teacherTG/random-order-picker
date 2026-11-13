@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>수행평가 순서뽑기</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #ffffff; --text: #1d2330; --muted: #6b7385;
+    --line: #e2e5ee; --accent: #4f6bed; --accent-soft: #e8ecfd; --off: #f1f2f6; --danger: #e5484d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12141a; --card: #1b1e27; --text: #e8eaf0; --muted: #9aa1b2;
+      --line: #2c303c; --accent: #7b91ff; --accent-soft: #252c4a; --off: #22252f; --danger: #ff6b6f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+  html { -webkit-text-size-adjust: 100%; }
+  button, .chip span, summary { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .wrap { max-width: 1100px; margin: 0 auto;
+    padding: 24px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); }
+  .top { display: grid; gap: 16px; margin-bottom: 16px; }
+  .top > .card { margin-bottom: 0; }
+  /* 가로가 넓은 화면(가로모드 폰·태블릿·TV): 설정 | 뽑기 나란히 */
+  @media (min-width: 700px) and (orientation: landscape) {
+    .top { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; }
+    .top > .draw { position: sticky; top: 12px; }
+  }
+  /* 높이가 낮은 가로모드 폰 */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .wrap { padding-top: 12px; }
+    h1 { font-size: 20px; } .sub { margin-bottom: 10px; }
+    .card { padding: 12px 14px; }
+    .stage { padding: 0; }
+  }
+  /* 큰 화면(스마트 TV 등): 전체 확대 */
+  @media (min-width: 1600px) and (min-height: 800px) { .wrap { zoom: 1.35; } }
+  @media (min-width: 2400px) and (min-height: 1200px) { .wrap { zoom: 1.9; } }
+  /* 터치 기기: 누르기 쉬운 크기 */
+  @media (pointer: coarse) {
+    button { min-height: 44px; padding: 10px 16px; font-size: 15px; }
+    .chip span { padding: 12px 0; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
+  }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  label.num { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  input[type=number] { width: 84px; padding: 8px 10px; font-size: 16px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  button { padding: 9px 14px; font-size: 14px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text); cursor: pointer; font-weight: 600; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; margin-top: 12px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .chip span { display: block; text-align: center; padding: 9px 0; border-radius: 8px; font-weight: 700;
+    border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); cursor: pointer; user-select: none; }
+  .chip input:not(:checked) + span { background: var(--off); border-color: var(--line); color: var(--muted); text-decoration: line-through; }
+  .count { font-weight: 700; color: var(--accent); }
+  .stage { text-align: center; padding: 10px 0 6px; }
+  details.toggle { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  details.toggle summary { cursor: pointer; font-size: 16px; font-weight: 700; list-style: none; user-select: none; }
+  details.toggle summary::-webkit-details-marker { display: none; }
+  details.toggle summary::before { content: "▸"; display: inline-block; width: 18px; color: var(--muted); transition: transform .15s; }
+  details.toggle[open] summary::before { transform: rotate(90deg); }
+  .big { font-size: clamp(72px, min(22vw, 30vh), 200px); font-weight: 800; line-height: 1.05; min-height: 1.05em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .big.rolling { color: var(--muted); }
+  .stage .label { color: var(--muted); font-size: 15px; min-height: 20px; }
+  .actions { justify-content: center; margin-top: 12px; }
+  ol.result { list-style: none; padding: 0; margin: 0; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  ol.result li { display: flex; flex-direction: column; align-items: center; padding: 14px 10px 16px; border-radius: 14px;
+    background: var(--bg); border: 2px solid var(--line); animation: pop .3s ease; }
+  ol.result li .ord { color: var(--muted); font-size: 18px; font-weight: 700; }
+  ol.result li .n { font-size: 48px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  ol.result li .n small { font-size: 22px; font-weight: 700; margin-left: 2px; }
+  ol.result li.latest { border-color: var(--accent); background: var(--accent-soft); }
+  ol.result li.latest .n { color: var(--accent); }
+  .result-title { font-size: 22px !important; }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+  .empty { color: var(--muted); font-size: 14px; }
+  .full { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: none; flex-direction: column;
+    height: 100vh; height: 100dvh;
+    padding: max(2vmin, env(safe-area-inset-top)) max(2vmin, env(safe-area-inset-right))
+             max(2vmin, env(safe-area-inset-bottom)) max(2vmin, env(safe-area-inset-left)); }
+  html.locked, html.locked body { overflow: hidden; }
+  .full.show { display: flex; animation: fadein .3s ease; }
+  .full-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 1.5vmin; }
+  .full-head h2 { margin: 0; font-size: clamp(18px, 4vmin, 56px); }
+  .full-head button { font-size: clamp(13px, 2.2vmin, 28px); padding: .5em 1em; }
+  .full-head .btns { display: flex; gap: 8px; }
+  .full-grid { flex: 1; display: grid; gap: 1.2vmin; min-height: 0; }
+  .full-grid div { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--card); border: 2px solid var(--line); border-radius: 1.6vmin; min-width: 0; min-height: 0; overflow: hidden; }
+  .full-grid .o { color: var(--muted); font-weight: 700; font-size: .3em; line-height: 1.2; }
+  .full-grid .v { font-weight: 800; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+  .full-grid .v small { font-size: .4em; margin-left: .05em; }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  @media print {
+    .full { display: none !important; }
+    .no-print { display: none !important; }
+    body { background: #fff; color: #000; }
+    .card { border: none; padding: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>수행평가 순서뽑기</h1>
+  <p class="sub">번호 범위를 정하고, 빠지는 번호는 체크를 풀어주세요.</p>
+
+  <div class="top">
+  <div class="card no-print">
+    <h2>1. 번호 범위</h2>
+    <div class="row">
+      <label class="num"><input type="number" id="start" value="1" min="1"> 번부터</label>
+      <label class="num"><input type="number" id="end" value="30" min="1"> 번까지</label>
+      <button id="applyBtn">적용</button>
+    </div>
+
+    <details class="toggle">
+      <summary><span class="t">2. 참여 번호 체크</span> <span class="count" id="countLabel"></span></summary>
+      <div class="row" style="margin-top:12px">
+        <button id="allOn">전체 선택</button>
+        <button id="allOff">전체 해제</button>
+      </div>
+      <div class="grid" id="grid"></div>
+      <p class="hint">결석·제외할 번호를 눌러 해제하세요. 설정은 이 브라우저에 저장됩니다.</p>
+    </details>
+  </div>
+
+  <div class="card draw no-print">
+    <h2>3. 뽑기</h2>
+    <div class="stage no-print">
+      <div class="big" id="big">?</div>
+      <div class="label" id="stageLabel">버튼을 눌러 시작하세요</div>
+    </div>
+    <div class="row actions no-print">
+      <button class="primary" id="oneBtn">한 명씩 뽑기</button>
+      <button class="primary" id="allBtn">전체 순서 한번에</button>
+      <button id="resetBtn">다시 하기</button>
+      <button id="copyBtn">결과 복사</button>
+      <button id="printBtn">인쇄</button>
+      <button id="fullBtn" style="display:none">크게 보기</button>
+    </div>
+  </div>
+  </div>
+
+  <div class="card">
+    <h2 class="result-title">발표 순서</h2>
+    <ol class="result" id="result"></ol>
+    <p class="empty" id="emptyMsg">아직 뽑은 번호가 없습니다.</p>
+  </div>
+</div>
+
+<div class="full" id="full">
+  <div class="full-head">
+    <h2>발표 순서</h2>
+    <div class="btns">
+      <button id="fullClose">닫기</button>
+      <button id="fullReset">다시 하기</button>
+    </div>
+  </div>
+  <div class="full-grid" id="fullGrid"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'order-picker-v1';
+let state = { start: 1, end: 30, excluded: [] };
+let drawn = [];
+let busy = false;
+let lastWasSingle = false;
+
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.start) state = s; } catch (e) {}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+function participants() {
+  const ex = new Set(state.excluded);
+  const list = [];
+  for (let i = state.start; i <= state.end; i++) if (!ex.has(i)) list.push(i);
+  return list;
+}
+function remaining() {
+  const d = new Set(drawn);
+  return participants().filter(n => !d.has(n));
+}
+
+function renderGrid() {
+  $('start').value = state.start; $('end').value = state.end;
+  const ex = new Set(state.excluded);
+  const grid = $('grid'); grid.innerHTML = '';
+  for (let i = state.start; i <= state.end; i++) {
+    const l = document.createElement('label'); l.className = 'chip';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !ex.has(i);
+    cb.addEventListener('change', () => {
+      if (busy) { cb.checked = !cb.checked; return; }
+      const set = new Set(state.excluded);
+      cb.checked ? set.delete(i) : set.add(i);
+      state.excluded = [...set].sort((a, b) => a - b);
+      save(); resetDraw();
+    });
+    const sp = document.createElement('span'); sp.textContent = i;
+    l.append(cb, sp); grid.append(l);
+  }
+  updateCount();
+}
+function updateCount() {
+  const total = state.end - state.start + 1, n = participants().length;
+  $('countLabel').textContent = `(${n}명 참여 / 전체 ${total}명)`;
+}
+
+function renderResult() {
+  const ol = $('result'); ol.innerHTML = '';
+  drawn.forEach((n, idx) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="ord">${idx + 1}번째</span><span class="n">${n}<small>번</small></span>`;
+    if (idx === drawn.length - 1 && lastWasSingle) li.classList.add('latest');
+    ol.append(li);
+  });
+  $('emptyMsg').style.display = drawn.length ? 'none' : '';
+  const left = remaining().length;
+  $('oneBtn').disabled = $('allBtn').disabled = busy || left === 0;
+  $('fullBtn').style.display = (!busy && drawn.length && left === 0) ? '' : 'none';
+  if (!busy) {
+    if (participants().length === 0) $('stageLabel').textContent = '참여 번호가 없습니다';
+    else if (left === 0) $('stageLabel').textContent = '모든 순서가 정해졌습니다!';
+    else if (drawn.length) $('stageLabel').textContent = `${drawn.length}번째 순서 · 남은 인원 ${left}명`;
+  }
+}
+
+function resetDraw() {
+  drawn = []; $('big').textContent = '?';
+  $('stageLabel').textContent = '버튼을 눌러 시작하세요';
+  updateCount(); renderResult();
+}
+
+function randInt(max) {
+  const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % max;
+}
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) { const j = randInt(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  return arr;
+}
+
+function roll(pool, duration) {
+  return new Promise(resolve => {
+    const big = $('big'); big.classList.add('rolling');
+    const t0 = performance.now();
+    (function tick() {
+      big.textContent = pool[randInt(pool.length)];
+      const el = performance.now() - t0;
+      if (el < duration) setTimeout(tick, 40 + el / 12);
+      else { big.classList.remove('rolling'); resolve(); }
+    })();
+  });
+}
+
+$('oneBtn').onclick = async () => {
+  const pool = remaining(); if (!pool.length || busy) return;
+  busy = true; renderResult(); $('stageLabel').textContent = '뽑는 중...';
+  await roll(pool, pool.length > 1 ? 1200 : 300);
+  const pick = pool[randInt(pool.length)];
+  $('big').textContent = pick; drawn.push(pick); lastWasSingle = true;
+  busy = false; renderResult();
+  maybeShowFull(1500);
+};
+
+$('allBtn').onclick = async () => {
+  const pool = remaining(); if (!pool.length || busy) return;
+  busy = true; renderResult(); $('stageLabel').textContent = '섞는 중...';
+  await roll(pool, 1000);
+  drawn.push(...shuffle(pool.slice()));
+  $('big').textContent = drawn[0]; lastWasSingle = false;
+  busy = false; renderResult();
+  maybeShowFull(300);
+};
+
+$('resetBtn').onclick = () => { if (!busy) resetDraw(); };
+
+// 전체화면 발표 순서
+function layoutFull() {
+  const grid = $('fullGrid'), n = drawn.length;
+  if (!n || !$('full').classList.contains('show')) return;
+  const W = grid.clientWidth, H = grid.clientHeight, gap = Math.min(innerWidth, innerHeight) * 0.012;
+  let best = { size: 0, cols: 1, rows: n, cellH: H };
+  for (let c = 1; c <= n; c++) {
+    const r = Math.ceil(n / c);
+    const cw = (W - gap * (c - 1)) / c, ch = (H - gap * (r - 1)) / r;
+    const size = Math.min(cw / 1.5, ch); // 카드는 가로가 약간 넓은 비율이 가장 보기 좋음
+    if (size > best.size) best = { size, cols: c, rows: r, cellH: ch, cellW: cw };
+  }
+  grid.style.gridTemplateColumns = `repeat(${best.cols}, minmax(0, 1fr))`;
+  grid.style.gridTemplateRows = `repeat(${best.rows}, minmax(0, 1fr))`;
+  // 번호 글자 크기: 칸 높이와 너비 중 작은 쪽 기준
+  const fs = Math.max(14, Math.min(best.cellH * 0.55, best.cellW * 0.42));
+  grid.style.fontSize = fs + 'px';
+}
+function showFull() {
+  const grid = $('fullGrid'); grid.innerHTML = '';
+  drawn.forEach((n, i) => {
+    const d = document.createElement('div');
+    d.innerHTML = `<span class="o">${i + 1}번째</span><span class="v">${n}<small>번</small></span>`;
+    grid.append(d);
+  });
+  $('full').classList.add('show');
+  document.documentElement.classList.add('locked');
+  layoutFull();
+}
+function hideFull() { $('full').classList.remove('show'); document.documentElement.classList.remove('locked'); }
+addEventListener('resize', layoutFull);
+addEventListener('orientationchange', () => setTimeout(layoutFull, 250));
+if (window.visualViewport) visualViewport.addEventListener('resize', layoutFull);
+addEventListener('keydown', e => { if (e.key === 'Escape') hideFull(); });
+$('fullBtn').onclick = showFull;
+$('fullClose').onclick = hideFull;
+$('fullReset').onclick = () => { hideFull(); resetDraw(); };
+function maybeShowFull(delay) {
+  if (drawn.length && remaining().length === 0) setTimeout(() => { if (remaining().length === 0 && drawn.length) showFull(); }, delay);
+}
+
+$('applyBtn').onclick = () => {
+  let s = parseInt($('start').value, 10), e = parseInt($('end').value, 10);
+  if (isNaN(s) || isNaN(e)) return alert('번호를 숫자로 입력해 주세요.');
+  if (s > e) [s, e] = [e, s];
+  if (e - s > 499) return alert('한 번에 최대 500명까지 가능합니다.');
+  state.start = s; state.end = e;
+  state.excluded = state.excluded.filter(n => n >= s && n <= e);
+  save(); renderGrid(); resetDraw();
+};
+['start', 'end'].forEach(id => $(id).addEventListener('keydown', ev => { if (ev.key === 'Enter') $('applyBtn').click(); }));
+
+$('allOn').onclick = () => { if (busy) return; state.excluded = []; save(); renderGrid(); resetDraw(); };
+$('allOff').onclick = () => {
+  if (busy) return;
+  state.excluded = []; for (let i = state.start; i <= state.end; i++) state.excluded.push(i);
+  save(); renderGrid(); resetDraw();
+};
+
+$('copyBtn').onclick = async () => {
+  if (!drawn.length) return alert('아직 뽑은 번호가 없습니다.');
+  const text = drawn.map((n, i) => `${i + 1}. ${n}번`).join('\n');
+  try { await navigator.clipboard.writeText(text); $('stageLabel').textContent = '결과를 복사했습니다'; }
+  catch (e) { prompt('아래 내용을 복사하세요', drawn.join(', ')); }
+};
+$('printBtn').onclick = () => window.print();
+
+renderGrid(); resetDraw();
+</script>
+</body>
+</html>
